@@ -1,0 +1,36 @@
+# ~/.bashrc — Fedora stock bashrc plus the dev-stack activations.
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+    . /etc/bashrc
+fi
+
+# User specific environment
+if ! [[ "$PATH" =~ "$HOME/.local/bin:$HOME/bin:" ]]; then
+    PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+fi
+export PATH
+
+# User specific aliases and functions
+if [ -d ~/.bashrc.d ]; then
+    for rc in ~/.bashrc.d/*; do
+        if [ -f "$rc" ]; then
+            . "$rc"
+        fi
+    done
+fi
+unset rc
+
+# Rust toolchain (installed by scripts/30-rust.sh)
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+# mise (runtime + tool manager) — provides node, uv, and the modern CLI tools
+command -v "$HOME/.local/bin/mise" >/dev/null 2>&1 && eval "$("$HOME/.local/bin/mise" activate bash)"
+
+# Smarter cd and fuzzy finding
+command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init bash)"
+command -v fzf    >/dev/null 2>&1 && eval "$(fzf --bash)"
+
+# Modern replacements for ls/cat
+command -v eza >/dev/null 2>&1 && alias ls='eza --group-directories-first'
+command -v bat >/dev/null 2>&1 && alias cat='bat --paging=never'

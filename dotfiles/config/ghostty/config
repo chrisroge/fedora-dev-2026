@@ -1,0 +1,36 @@
+# ~/.config/ghostty/config  —  the Ghostty terminal
+# Docs: https://ghostty.org/docs/config
+# Reload a running Ghostty with:  Ctrl+Shift+,
+
+# --- Font ---
+font-family = JetBrainsMono Nerd Font
+font-size = 10
+
+# --- Theme & transparency ---
+theme = iTerm2 Solarized Dark
+# Body text lifted off Solarized's canonical base0 (#839496, 4.75:1 on #002b36)
+# for legibility. This line is rewritten per-mode by ~/.local/bin/ghostty-theme,
+# because #b3bcbc on the light background would be unreadable.
+foreground = #cfd6d6
+# Solarized's own selection (base02 on base03) is 1.15:1 against the page --
+# effectively invisible. Inverted instead: light block, dark text.
+selection-background = #93a1a1
+selection-foreground = #002b36
+background-opacity = 0.95
+background-blur = true
+
+# --- Window ---
+window-padding-x = 8
+window-padding-y = 8
+# Hyprland draws borders, so hide the GTK titlebar.
+# NOTE: Ghostty has no inline "#" comments -- a trailing comment becomes part
+# of the value. Keep comments on their own line.
+window-decoration = none
+confirm-close-surface = false
+
+# --- Cursor ---
+cursor-style = bar
+cursor-style-blink = true
+
+# --- Scrollback ---
+scrollback-limit = 100000

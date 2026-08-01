@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# ghostty-theme -- toggle Ghostty between iTerm2 Solarized Light and Dark.
+#
+#   ghostty-theme            toggle
+#   ghostty-theme toggle     same
+#   ghostty-theme light      force light
+#   ghostty-theme dark       force dark
+#   ghostty-theme get        print "light" | "dark" | "unknown"
+#   ghostty-theme status     print waybar JSON (text/tooltip/class)
+#
+# Reloads running Ghostty windows via its D-Bus "reload-config" action -- the
+# same action bound to Ctrl+Shift+, -- so open terminals restyle in place.
+# NOTE: do NOT signal the Ghostty process instead; a single PID serves every
+# window, so a stray signal would take down all of them at once.
+
+set -euo pipefail
+
+CONFIG="${GHOSTTY_CONFIG:-$HOME/.config/ghostty/config}"
+LIGHT="iTerm2 Solarized Light"
+DARK="iTerm2 Solarized Dark"
+
+# Foreground and selection are brightened off Solarized's canonical tones for
+# legibility, so they MUST be flipped together with the theme -- the dark
+# values on a light background (or vice versa) are unreadable.
+FG_LIGHT="#586e75"       # base01 on #fdf6e3  -> 7.50:1
+FG_DARK="#cfd6d6"        # lifted base1 on #002b36 -> 10.18:1
+
+# Stock Solarized selection is base02 on base03 = 1.15:1, i.e. invisible.
+# Inverted instead so a selection is unmistakable in both modes.
+SEL_BG_LIGHT="#586e75";  SEL_FG_LIGHT="#fdf6e3"   # 4.99:1 vs page
+SEL_BG_DARK="#93a1a1";   SEL_FG_DARK="#002b36"    # 5.61:1 vs page
+WAYBAR_SIGNAL=8          # waybar custom module listens on SIGRTMIN+8
+
+DBUS_DEST="com.mitchellh.ghostty"
+DBUS_PATH="/com/mitchellh/ghostty"
+
+die() { printf 'ghostty-theme: %s\n' "$*" >&2; exit 1; }
+
+[ -f "$CONFIG" ] || die "config not found: $CONFIG"
+
+# --- read the effective theme (Ghostty takes the LAST theme= line) -----------
+current_theme_name() {
+    grep -E '^[[:space:]]*theme[[:space:]]*=' "$CONFIG" \
+        | tail -n 1 \
+        | sed -E 's/^[[:space:]]*theme[[:space:]]*=[[:space:]]*//; s/[[:space:]]+$//'
+}
+
+current() {
+    case "$(current_theme_name)" in
+        "$LIGHT") echo light ;;
+        "$DARK")  echo dark  ;;
+        *)        echo unknown ;;
+    esac
+}
+
+# --- write the new theme, validating before we commit ------------------------
+apply() {
+    local want="$1" name fg sbg sfg tmp
+    case "$want" in
+        light) name="$LIGHT"; fg="$FG_LIGHT"; sbg="$SEL_BG_LIGHT"; sfg="$SEL_FG_LIGHT" ;;
+        dark)  name="$DARK";  fg="$FG_DARK";  sbg="$SEL_BG_DARK";  sfg="$SEL_FG_DARK"  ;;
+        *)     die "unknown mode: $want" ;;
+    esac
+
+    tmp="$(mktemp "${TMPDIR:-/tmp}/ghostty-theme.XXXXXX")"
+    trap 'rm -f "$tmp"' EXIT
+
+    if grep -qE '^[[:space:]]*theme[[:space:]]*=' "$CONFIG"; then
+        awk -v n="$name" -v f="$fg" -v sb="$sbg" -v sf="$sfg" '
+            /^[[:space:]]*theme[[:space:]]*=/                { print "theme = " n; next }
+            /^[[:space:]]*foreground[[:space:]]*=/           { print "foreground = " f; next }
+            /^[[:space:]]*selection-background[[:space:]]*=/ { print "selection-background = " sb; next }
+            /^[[:space:]]*selection-foreground[[:space:]]*=/ { print "selection-foreground = " sf; next }
+            { print }
+        ' "$CONFIG" >"$tmp"
+    else
+        cat "$CONFIG" >"$tmp"
+        printf '\ntheme = %s\n' "$name" >>"$tmp"
+    fi
+
+    # Append any of these that were missing, so both modes stay legible.
+    grep -qE '^[[:space:]]*foreground[[:space:]]*=' "$tmp" \
+        || printf 'foreground = %s\n' "$fg" >>"$tmp"
+    grep -qE '^[[:space:]]*selection-background[[:space:]]*=' "$tmp" \
+        || printf 'selection-background = %s\n' "$sbg" >>"$tmp"
+    grep -qE '^[[:space:]]*selection-foreground[[:space:]]*=' "$tmp" \
+        || printf 'selection-foreground = %s\n' "$sfg" >>"$tmp"
+
+    # Validate the candidate before overwriting a working config.
+    if command -v ghostty >/dev/null 2>&1; then
+        local errs
+        errs="$(ghostty +validate-config --config-file="$tmp" 2>&1 || true)"
+        [ -n "$errs" ] && die "refusing to write, config would be invalid:"$'\n'"$errs"
+    fi
+
+    cp -- "$tmp" "$CONFIG"
+    rm -f "$tmp"; trap - EXIT
+
+    reload_ghostty
+    refresh_waybar
+}
+
+# --- reload live windows (no-op if Ghostty is not running) -------------------
+reload_ghostty() {
+    command -v gdbus >/dev/null 2>&1 || return 0
+    gdbus call --session --dest "$DBUS_DEST" --object-path "$DBUS_PATH" \
+        --method org.gtk.Actions.Activate "reload-config" "[]" "{}" \
+        >/dev/null 2>&1 || true
+}
+
+refresh_waybar() {
+    pkill -RTMIN+"$WAYBAR_SIGNAL" waybar 2>/dev/null || true
+}
+
+# --- waybar payload ----------------------------------------------------------
+status_json() {
+    local mode icon tip
+    mode="$(current)"
+    case "$mode" in
+        light) icon=""; tip="Ghostty: Solarized Light — click to switch to Dark" ;;
+        dark)  icon=""; tip="Ghostty: Solarized Dark — click to switch to Light" ;;
+        *)     icon=""; tip="Ghostty theme: $(current_theme_name) (not a Solarized pair) — click for Dark" ;;
+    esac
+    printf '{"text":"%s","tooltip":"%s","class":"%s","alt":"%s"}\n' \
+        "$icon" "$tip" "$mode" "$mode"
+}
+
+case "${1:-toggle}" in
+    toggle)  case "$(current)" in light) apply dark ;; *) apply light ;; esac ;;
+    light)   apply light ;;
+    dark)    apply dark ;;
+    get)     current ;;
+    status)  status_json ;;
+    -h|--help|help)
+             sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *)       die "usage: ghostty-theme [toggle|light|dark|get|status]" ;;
+esac

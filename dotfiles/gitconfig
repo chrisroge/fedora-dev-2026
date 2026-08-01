@@ -1,0 +1,13 @@
+# ~/.gitconfig
+# Identity is deliberately NOT shipped here. Set yours once:
+#   git config --global user.name  "Your Name"
+#   git config --global user.email "you@example.com"
+
+# Let the GitHub CLI broker credentials — no PATs on disk, no askpass popups.
+# (Run `gh auth login` first; see scripts/70-extras.sh.)
+[credential "https://github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential

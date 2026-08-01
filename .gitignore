@@ -1,0 +1,6 @@
+# Nothing generated lives here, but keep the usual suspects out just in case.
+*.swp
+*~
+.DS_Store
+.env
+.env.*

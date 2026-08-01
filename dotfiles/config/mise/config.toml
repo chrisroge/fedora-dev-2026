@@ -1,0 +1,10 @@
+[tools]
+delta = "latest"
+node = "lts"
+uv = "latest"
+zoxide = "latest"
+eza = "latest"
+fd = "latest"
+fzf = "latest"
+yq = "latest"
+lazygit = "latest"
