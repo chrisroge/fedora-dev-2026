@@ -41,6 +41,7 @@ alone:
 | `scripts/40-mise.sh` | mise itself + everything in `dotfiles/config/mise/config.toml` |
 | `scripts/50-fonts.sh` | JetBrainsMono Nerd Font (per-user, from official releases) |
 | `scripts/60-dotfiles.sh` | Installs all configs below, backing up anything it would overwrite |
+| `scripts/65-thermal-breaker.sh` | Root daemon that clamps the CPU to 2 GHz at 95°C and restores full boost below 80°C — a software safety net under the hardware throttle for unattended build/test load. AMD-only (k10temp); skips itself elsewhere |
 | `scripts/70-extras.sh` | *(manual)* Claude Code + Codex CLI, `gh auth login`, git identity |
 
 ## The desktop

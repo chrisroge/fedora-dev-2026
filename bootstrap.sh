@@ -14,7 +14,8 @@ for stage in scripts/00-repos.sh \
              scripts/30-rust.sh \
              scripts/40-mise.sh \
              scripts/50-fonts.sh \
-             scripts/60-dotfiles.sh; do
+             scripts/60-dotfiles.sh \
+             scripts/65-thermal-breaker.sh; do
   echo
   echo "######## $stage ########"
   bash "$stage"
