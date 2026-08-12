@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# capped — run a command in a memory-capped systemd scope so a runaway job
+# gets killed by the kernel instead of taking down the whole box.
+#
+# Usage:  capped [-m MAX] command [args...]
+#         capped qemu-system-x86_64 ...          (default cap)
+#         capped -m 8G ffmpeg -i in.mkv out.mp4
+#
+# MemoryHigh throttles/reclaims at 90% of the cap before the hard kill at MAX.
+set -euo pipefail
+
+MAX="${CAPPED_MAX:-16G}"
+if [[ "${1:-}" == "-m" ]]; then
+  MAX="$2"
+  shift 2
+fi
+
+if [[ $# -eq 0 ]]; then
+  echo "usage: capped [-m MAX] command [args...]" >&2
+  exit 2
+fi
+
+# Derive MemoryHigh = 90% of MAX (supports K/M/G/T suffixes).
+num="${MAX%[KMGT]}"
+suf="${MAX##"$num"}"
+high="$(awk -v n="$num" 'BEGIN { printf "%.0f", n * 0.9 }')${suf}"
+
+exec systemd-run --user --scope --quiet \
+  -p MemoryMax="$MAX" \
+  -p MemoryHigh="$high" \
+  -p MemorySwapMax=4G \
+  "$@"

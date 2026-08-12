@@ -26,6 +26,8 @@ CLI=(
   bash-color-prompt bash-completion
   bat btop jq ripgrep tmux
   plocate dos2unix whois mtr nmap-ncat bind-utils
+  unzip                   # 50-fonts.sh unpacks the Nerd Font release with it
+  lm_sensors              # backs waybar's temperature module
 )
 
 # --- Development ------------------------------------------------------------

@@ -1,0 +1,10 @@
+[Unit]
+Description=Calm touchpad while an external mouse is attached
+
+[Service]
+ExecStart=%h/.config/hypr/scripts/touchpad-calm.sh --watch
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -33,6 +33,12 @@ for f in hyprland.conf hypridle.conf hyprpaper.conf gaming.conf animated-wallpap
 done
 chmod +x "$HOME/.config/hypr/animated-wallpaper.sh"
 
+# Helper scripts the Hyprland session drives (touchpad-calm.sh is wired to a
+# user unit by 66-touchpad-calm.sh).
+install_file "$SRC/config/hypr/scripts/touchpad-calm.sh" \
+             "$HOME/.config/hypr/scripts/touchpad-calm.sh"
+chmod +x "$HOME/.config/hypr/scripts/touchpad-calm.sh"
+
 install_file "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
 install_file "$SRC/config/waybar/style.css"    "$HOME/.config/waybar/style.css"
 install_file "$SRC/config/ghostty/config"      "$HOME/.config/ghostty/config"
@@ -42,6 +48,9 @@ install_file "$SRC/config/gamemode.ini"        "$HOME/.config/gamemode.ini"
 
 install_file "$SRC/local/bin/ghostty-theme" "$HOME/.local/bin/ghostty-theme"
 chmod +x "$HOME/.local/bin/ghostty-theme"
+
+install_file "$SRC/local/bin/capped" "$HOME/.local/bin/capped"
+chmod +x "$HOME/.local/bin/capped"
 
 # Wallpaper directory the hypr configs point at — drop your own files here:
 #   wallpaper.png  (hyprpaper static wallpaper)

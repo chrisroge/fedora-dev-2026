@@ -42,6 +42,7 @@ alone:
 | `scripts/50-fonts.sh` | JetBrainsMono Nerd Font (per-user, from official releases) |
 | `scripts/60-dotfiles.sh` | Installs all configs below, backing up anything it would overwrite |
 | `scripts/65-thermal-breaker.sh` | Root daemon that clamps the CPU to 2 GHz at 95°C and restores full boost below 80°C — a software safety net under the hardware throttle for unattended build/test load. AMD-only (k10temp); skips itself elsewhere |
+| `scripts/66-touchpad-calm.sh` | User service that disables touchpad tap-to-click while an external mouse is attached. Skips itself on machines with no touchpad |
 | `scripts/70-extras.sh` | *(manual)* Claude Code + Codex CLI, `gh auth login`, git identity |
 
 ## The desktop
@@ -110,6 +111,18 @@ invisible). `ghostty-theme` flips light/dark:
 
 Click the icon in Waybar, or run `ghostty-theme toggle|light|dark`.
 
+### Touchpad calming (`dotfiles/config/hypr/scripts/touchpad-calm.sh`)
+
+On a laptop docked to an external mouse, a palm brushing the touchpad lands as
+a stray click mid-sentence. `touchpad-calm.service` watches udev for mouse
+hotplug and turns **tap-to-click and tap-and-drag off whenever a USB or
+Bluetooth mouse is present**, restoring them when it's unplugged. Pointer
+motion, two-finger scroll, and physical clickpad presses keep working
+throughout — only taps are suppressed.
+
+It re-resolves the Hyprland instance signature on every call, so it survives
+compositor restarts, and re-applies every 30 seconds to heal config reloads.
+
 ## The shell & CLI stack
 
 `~/.bashrc` stays close to Fedora stock and layers on:
@@ -118,6 +131,16 @@ Click the icon in Waybar, or run `ghostty-theme toggle|light|dark`.
 - **zoxide** (`z` = frecency-ranked cd) and **fzf** keybindings (`Ctrl+R` history, `Ctrl+T` files)
 - `ls` → **eza**, `cat` → **bat**
 - From dnf: `ripgrep`, `fd` (mise), `jq`/`yq`, `btop`, `tmux`, `lazygit`, `delta`
+
+`capped` (`dotfiles/local/bin/capped`) runs a command inside a memory-capped
+systemd scope, so a runaway build, VM, or transcode gets OOM-killed on its own
+instead of taking the desktop down with it. `MemoryHigh` throttles and reclaims
+at 90% of the cap before the hard kill:
+
+```bash
+capped cargo build --release      # default 16G cap (override with $CAPPED_MAX)
+capped -m 8G ffmpeg -i in.mkv out.mp4
+```
 
 Runtimes and tool versions live in one file, `dotfiles/config/mise/config.toml`:
 
@@ -179,12 +202,16 @@ dotfiles/
   bashrc  bash_profile  gitconfig
   config/
     hypr/                 # hyprland, hypridle, hyprpaper, gaming rules, wallpaper script
+      scripts/            # touchpad-calm.sh
     waybar/               # config.jsonc + style.css
     ghostty/config
     mise/config.toml
     MangoHud/MangoHud.conf
     gamemode.ini
-  local/bin/ghostty-theme # solarized light/dark toggle
+  local/bin/
+    ghostty-theme         # solarized light/dark toggle
+    capped                # run a command under a memory cap
+  systemd/user/           # touchpad-calm.service
 ```
 
 No secrets, no personal data: git identity is a placeholder, GitHub auth goes
