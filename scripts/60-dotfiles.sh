@@ -11,15 +11,21 @@ SRC="$REPO_DIR/dotfiles"
 BACKUP="$HOME/.dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
 
 install_file() {
-  local src="$1" dest="$2"
-  if [ -e "$dest" ] && ! cmp -s "$src" "$dest"; then
+  local src="$1" dest="$2" staged
+  # Expand the __HOME__ placeholder (for tools that don't do ~ themselves)
+  # BEFORE comparing: the destination is always the expanded form, so diffing
+  # the raw source against it would report every placeholder-bearing file as
+  # changed and re-back it up on every run.
+  staged="$(mktemp)"
+  sed "s|__HOME__|$HOME|g" "$src" > "$staged"
+
+  if [ -e "$dest" ] && ! cmp -s "$staged" "$dest"; then
     mkdir -p "$BACKUP/$(dirname "${dest#"$HOME"/}")"
     cp -a "$dest" "$BACKUP/${dest#"$HOME"/}"
   fi
   mkdir -p "$(dirname "$dest")"
-  cp "$src" "$dest"
-  # Expand the placeholder for tools that don't do ~ themselves
-  sed -i "s|__HOME__|$HOME|g" "$dest"
+  cp "$staged" "$dest"
+  rm -f "$staged"
 }
 
 install_file "$SRC/bashrc"       "$HOME/.bashrc"

@@ -1,6 +1,6 @@
 # Fedora Developer Workstation, 2026 Edition
 
-A fully scripted, documented build of a developer laptop: **Fedora 43 Workstation**
+A fully scripted, documented build of a developer laptop: **Fedora 44 Workstation**
 with the GNOME base intact, running the **Hyprland** tiling compositor with
 **Waybar**, **Ghostty**, a modern CLI stack, **mise**-managed runtimes, Rust via
 rustup, rootless **Podman**, and a tuned Steam/gamescope gaming layer.
@@ -20,7 +20,7 @@ cd fedora-dev-2026
 | Choice | Over | Because |
 |---|---|---|
 | Fedora Workstation + Hyprland session | a minimal/DIY spin | You keep GDM, NetworkManager, PipeWire, portals, printing — all maintained by Fedora — and add Hyprland as *just another session* selectable at login. GNOME remains available as a fallback session. |
-| Hyprland (solopasha COPR) | Fedora's own packaging pace | The COPR tracks upstream closely; you get current Hyprland (`0.51.x` at time of writing) with the matching portal, hypridle, hyprlock, hyprpaper. |
+| Hyprland (sachesi COPR) | Fedora's own packaging | Fedora ships only `xdg-desktop-portal-hyprland`, so the compositor must come from a COPR. This project carries the whole set — compositor, hypridle, hyprlock, hyprpaper, portal, and the aquamarine/hyprutils/hyprlang deps — for fedora-44 and rawhide. |
 | Ghostty | kitty/alacritty | GPU-rendered, native Wayland, config hot-reload over D-Bus (this repo's light/dark toggle uses it), sane defaults. |
 | mise | asdf / per-tool installers | One tool pins node (LTS), uv, and the modern CLI utilities (`eza`, `fd`, `fzf`, `zoxide`, `lazygit`, `delta`, `yq`) — versioned in one TOML file, upgradable with one command. |
 | rustup | dnf rust | Toolchain management, `rust-analyzer`, painless `stable` updates. |
@@ -34,7 +34,7 @@ alone:
 
 | Stage | What it does |
 |---|---|
-| `scripts/00-repos.sh` | COPRs (`solopasha/hyprland`, `scottames/ghostty`), VS Code repo, RPM Fusion Steam repo, dnf5 plugins |
+| `scripts/00-repos.sh` | COPRs (`sachesi/hyprland`, `scottames/ghostty`), VS Code repo, RPM Fusion Steam repo, dnf5 plugins. Ends by verifying the key packages actually resolve, so a pruned COPR fails here instead of at login |
 | `scripts/10-packages.sh` | dnf packages, grouped: Hyprland desktop, everyday CLI, dev toolchain, fonts, gaming |
 | `scripts/20-flatpaks.sh` | Flathub remote + Chrome |
 | `scripts/30-rust.sh` | rustup (stable), rust-analyzer/clippy/rustfmt, sqlx-cli |
@@ -123,6 +123,27 @@ throughout — only taps are suppressed.
 It re-resolves the Hyprland instance signature on every call, so it survives
 compositor restarts, and re-applies every 30 seconds to heal config reloads.
 
+Deciding what counts as an external mouse takes more care than
+`ID_INPUT_MOUSE=1`: keyboards routinely expose a second HID interface carrying
+relative axes, which udev tags as a mouse, so a permanently plugged-in keyboard
+would calm the touchpad forever. The script reads `ID_USB_INTERFACES` — the
+list of interfaces the physical device declares as `:CCSSPP:` — and skips
+anything declaring an HID boot **keyboard** (protocol `01`) but no boot
+**mouse** (protocol `02`). Unifying receivers that carry both still count, and
+Bluetooth mice expose no `ID_USB_INTERFACES` at all, so they count too.
+
+If taps are stuck off (or stubbornly on), ask it why:
+
+```bash
+~/.config/hypr/scripts/touchpad-calm.sh --explain
+```
+
+It prints every pointer node, whether each counted, and the resulting decision.
+To force-ignore a device that still fools it, set `IGNORE_RE` (matched against
+`ID_SERIAL`/`ID_MODEL`/`ID_VENDOR`) in the service:
+`systemctl --user edit touchpad-calm` →
+`Environment=IGNORE_RE=My_Weird_Dock`.
+
 ## The shell & CLI stack
 
 `~/.bashrc` stays close to Fedora stock and layers on:
@@ -171,7 +192,8 @@ overrides any of them per repository.
 - **Containers**: rootless Podman; `toolbox` for disposable pet containers.
   `docker-compose` works via the Podman socket:
   `systemctl --user enable --now podman.socket`.
-- **Cloud**: AWS CLI v2 + Session Manager plugin; `gh` for GitHub.
+- **Cloud**: AWS CLI v2 (dnf) + Session Manager plugin (installed straight from
+  AWS's RPM URL — it isn't in Fedora or RPM Fusion); `gh` for GitHub.
 - **Editors**: VS Code (Microsoft repo); Ghostty + tmux + lazygit for terminal life.
 - **AI CLIs** *(optional, `scripts/70-extras.sh`)*: Claude Code and Codex CLI.
 

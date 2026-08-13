@@ -28,6 +28,7 @@ CLI=(
   plocate dos2unix whois mtr nmap-ncat bind-utils
   unzip                   # 50-fonts.sh unpacks the Nerd Font release with it
   lm_sensors              # backs waybar's temperature module
+  diffutils               # 60-dotfiles.sh uses cmp to skip unchanged files
 )
 
 # --- Development ------------------------------------------------------------
@@ -37,7 +38,7 @@ DEV=(
   openssl-devel dbus-devel alsa-lib-devel   # common native-crate build deps
   podman toolbox                            # containers, rootless by default
   postgresql                                # psql client
-  awscli2 session-manager-plugin            # AWS CLI + SSM sessions
+  awscli2                                   # AWS CLI (SSM plugin is separate, below)
 )
 
 # --- Fonts ------------------------------------------------------------------
@@ -55,5 +56,12 @@ GAMING=(
 
 sudo dnf -y install \
   "${HYPRLAND[@]}" "${CLI[@]}" "${DEV[@]}" "${FONTS[@]}" "${GAMING[@]}"
+
+# AWS SSM session plugin is not in Fedora (or RPM Fusion) — AWS ships its own
+# RPM, so dnf installs it straight from the URL.
+if ! rpm -q session-manager-plugin >/dev/null 2>&1; then
+  sudo dnf -y install \
+    https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm
+fi
 
 echo "==> Packages installed"
