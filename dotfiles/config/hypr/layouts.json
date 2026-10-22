@@ -1,0 +1,10 @@
+{
+  "default": "dwindle",
+  "workspaces": {
+    "5": "three-columns",
+    "1": "two-columns",
+    "6": "two-columns",
+    "7": "two-columns",
+    "8": "dwindle"
+  }
+}

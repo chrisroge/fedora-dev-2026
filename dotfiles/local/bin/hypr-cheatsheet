@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Hyprland keyboard cheat sheet, rendered live from the running bindings.
+
+    hypr-cheatsheet           toggle the floating cheat-sheet window
+    hypr-cheatsheet --print   print it to this terminal (plain text)
+
+Every binding in hyprland.lua carries a "Group: action" description; this
+reads them back with `hyprctl -j binds`, so the sheet always matches the
+config. Numbered runs (workspaces 1..10) collapse into one line.
+
+★ marks a binding that differs from Hyprland's stock config: keys the stock
+config (/usr/share/hypr/hyprland.lua) doesn't bind are found automatically;
+stock keys rebound here carry a ★ in their description (`changed = true`).
+
+The window opens sized to its content, with as many columns as the focused
+display has room for. Bound to SUPER + / and to the keyboard icon in Waybar.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+# Ghostty only applies a valid GTK application ID (it needs a dot); anything
+# else silently falls back to com.mitchellh.ghostty and the window rule misses.
+CLASS = 'local.hypr-cheatsheet'
+STOCK_CONFIG = '/usr/share/hypr/hyprland.lua'
+STAR = '★'
+GROUP_ORDER = ['Help', 'Apps', 'Windows', 'Layout', 'Workspaces', 'Monitors', 'Media', 'Session']
+MODS = [(64, 'SUPER'), (4, 'CTRL'), (8, 'ALT'), (1, 'SHIFT')]
+KEY_NAMES = {
+    'slash': '/', 'mouse:272': 'Left-drag', 'mouse:273': 'Right-drag',
+    'mouse_down': 'Scroll down', 'mouse_up': 'Scroll up', 'Print': 'PrtSc',
+    'left': '←', 'right': '→', 'up': '↑', 'down': '↓',
+    'XF86AudioRaiseVolume': 'Vol+', 'XF86AudioLowerVolume': 'Vol−', 'XF86AudioMute': 'Mute',
+    'XF86AudioMicMute': 'Mic mute', 'XF86MonBrightnessUp': 'Bright+', 'XF86MonBrightnessDown': 'Bright−',
+    'XF86AudioNext': 'Next', 'XF86AudioPrev': 'Prev', 'XF86AudioPlay': 'Play', 'XF86AudioPause': 'Pause',
+}
+BOLD, DIM, GOLD, BLUE, RESET = '\033[1m', '\033[2m', '\033[38;5;179m', '\033[38;5;110m', '\033[0m'
+ANSI = re.compile(r'\033\[[0-9;]*m')
+GAP = 5            # spaces between columns
+CELL_W, CELL_H = 9, 19   # conservative logical px per cell at font-size 10
+
+
+def hyprctl_json(*args):
+    return json.loads(subprocess.run(['hyprctl', '-j', *args], text=True,
+                                     capture_output=True, check=True).stdout)
+
+
+def combo_key(mods, key):
+    """Order-independent identity for a key combination."""
+    return (frozenset(mods), key.lower())
+
+
+def stock_combos():
+    """Key combinations bound by Hyprland's stock config (empty if missing)."""
+    try:
+        src = open(STOCK_CONFIG).read()
+    except OSError:
+        return set()
+    m = re.search(r'local mainMod\s*=\s*"(\w+)"', src)
+    if m:
+        src = src.replace('mainMod .. "', '"' + m.group(1))
+    combos = set()
+    for keys in re.findall(r'hl\.bind\("([^"]+)"', src):
+        parts = [p.strip() for p in keys.split('+')]
+        combos.add(combo_key([p.upper() for p in parts[:-1]], parts[-1]))
+    # The stock number row is generated in a loop: SUPER [+ SHIFT] + 1..0
+    if re.search(r'for i = 1, 10', src):
+        for k in '1234567890':
+            combos.add(combo_key(['SUPER'], k))
+            combos.add(combo_key(['SUPER', 'SHIFT'], k))
+    return combos
+
+
+def mods_of(bind):
+    return [name for bit, name in MODS if bind['modmask'] & bit]
+
+
+def combo_text(bind):
+    return ' + '.join(mods_of(bind) + [KEY_NAMES.get(bind['key'], bind['key'])])
+
+
+def collect():
+    """{group: [(keys, action, custom)]} with numbered runs collapsed."""
+    stock = stock_combos()
+    groups, runs = {}, {}
+    for b in hyprctl_json('binds'):
+        desc = b.get('description') or ''
+        custom = desc.endswith(STAR) or bool(stock) and combo_key(mods_of(b), b['key']) not in stock
+        desc = desc.removesuffix(STAR).rstrip()
+        group, _, action = desc.partition(': ')
+        if not action:
+            # Lua binds report their dispatcher as "__lua", so an undescribed
+            # bind can only be listed by its keys.
+            group, action = 'Other', desc or '(no description — add one in hyprland.lua)'
+        m = re.fullmatch(r'(.*?)(\d+)', action)
+        if m and b['key'].isdigit():
+            # Collapse "Go to workspace 1".."10" sharing the same modifiers.
+            runs.setdefault((group, m.group(1), b['modmask']), []).append((int(m.group(2)), b, custom))
+            continue
+        groups.setdefault(group, []).append((combo_text(b), action, custom))
+    for (group, prefix, _), items in runs.items():
+        items.sort(key=lambda x: x[0])
+        lo, hi = items[0][0], items[-1][0]
+        last = items[-1][1]['key']
+        keys = f'{combo_text(items[0][1])}…{KEY_NAMES.get(last, last)}'
+        groups.setdefault(group, []).append((keys, f'{prefix}{lo}–{hi}', any(c for _, _, c in items)))
+    order = {g: i for i, g in enumerate(GROUP_ORDER)}
+    return dict(sorted(groups.items(), key=lambda g: order.get(g[0], len(order))))
+
+
+def split(groups, n):
+    """Split groups, in order, into n columns with the shortest tallest column.
+
+    There are only a handful of groups, so every set of split points is tried.
+    """
+    from itertools import combinations
+    names = list(groups)
+    n = min(n, len(names))
+    heights = [len(groups[g]) + 2 for g in names]   # title + blank line
+    best = None
+    for cuts in combinations(range(1, len(names)), n - 1):
+        bounds = (0, *cuts, len(names))
+        tallest = max(sum(heights[a:b]) for a, b in zip(bounds, bounds[1:]))
+        if best is None or tallest < best[0]:
+            best = (tallest, bounds)
+    return [names[a:b] for a, b in zip(best[1], best[1][1:])]
+
+
+def render_column(groups, names, color):
+    # Keys are padded to the longest key in this column only, so a column of
+    # short combos doesn't inherit a wide gap from another column.
+    keyw = max(len(k) for g in names for k, _, _ in groups[g])
+    lines = []
+    for g in names:
+        lines.append(f'{BOLD}{GOLD}{g}{RESET}' if color else g)
+        for keys, action, custom in groups[g]:
+            mark = (f'{GOLD}{STAR}{RESET}' if color else STAR) if custom else ' '
+            k = f'{BLUE}{keys:<{keyw}}{RESET}' if color else f'{keys:<{keyw}}'
+            lines.append(f'{mark} {k}  {action}')
+        lines.append('')
+    return lines[:-1]   # no trailing blank
+
+
+def layout(groups, color, n):
+    cols = [render_column(groups, names, color) for names in split(groups, n)]
+    widths = [max(len(ANSI.sub('', line)) for line in c) for c in cols]
+    out = []
+    for i in range(max(len(c) for c in cols)):
+        row = ''
+        for c, w in zip(cols, widths):
+            cell = c[i] if i < len(c) else ''
+            row += cell + ' ' * (w - len(ANSI.sub('', cell)) + GAP)
+        out.append(row.rstrip())
+    return out
+
+
+def best_columns(groups, max_cols, max_rows):
+    """Fewest columns whose height fits; never wider than the display."""
+    for n in (1, 2, 3, 4):
+        lines = layout(groups, False, n)
+        width = max(len(line) for line in lines)
+        if width > max_cols:
+            return max(1, n - 1)
+        if len(lines) <= max_rows:
+            return n
+    return 4
+
+
+def header(color):
+    legend = f'{STAR} = changed from Hyprland defaults'
+    if color:
+        return [f'{BOLD}Hyprland shortcuts{RESET}   {DIM}{legend} · q or Esc to close{RESET}', '']
+    return ['Hyprland shortcuts   ' + legend, '']
+
+
+def show(n):
+    text = '\n'.join(header(True) + layout(collect(), True, n)) + '\n'
+    pager = shutil.which('less')
+    if pager:
+        subprocess.run([pager, '-R', '-S', '-K', '--mouse', '-P', 'q to close'], input=text, text=True)
+    else:
+        print(text)
+        input()
+
+
+def toggle():
+    # Close an open cheat sheet instead of stacking a second one. Its Ghostty
+    # runs as its own process (single-instance off), so killing it is safe.
+    for c in hyprctl_json('clients'):
+        if c.get('class') == CLASS:
+            os.kill(c['pid'], 15)
+            return
+    # Size to the content for the display it will open on.
+    mon = next((m for m in hyprctl_json('monitors') if m.get('focused')), None)
+    w, h = (mon['width'], mon['height']) if mon else (1920, 1080)
+    if mon and mon.get('transform', 0) % 2:
+        w, h = h, w
+    scale = mon.get('scale', 1) if mon else 1
+    max_cols, max_rows = int(w / scale / CELL_W * 0.9), int(h / scale / CELL_H * 0.8)
+    groups = collect()
+    n = best_columns(groups, max_cols, max_rows)
+    lines = header(False) + layout(groups, False, n)
+    # Ghostty's cell grid loses a little to window padding, so leave margin;
+    # the extra row holds the pager's "q to close" prompt.
+    cols = max(len(line) for line in lines) + 6
+    rows = len(lines) + 4
+    subprocess.Popen(['ghostty', '--gtk-single-instance=false', f'--class={CLASS}',
+                      '--title=Hyprland shortcuts', '--confirm-close-surface=false',
+                      f'--window-width={cols}', f'--window-height={min(rows, max_rows)}',
+                      '-e', os.path.abspath(__file__), '--show', str(n)],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def main():
+    arg = sys.argv[1] if len(sys.argv) > 1 else ''
+    if arg == '--print':
+        groups = collect()
+        width = shutil.get_terminal_size((100, 40)).columns
+        n = best_columns(groups, width, 45)
+        print('\n'.join(header(False) + layout(groups, False, n)))
+    elif arg == '--show':
+        show(int(sys.argv[2]) if len(sys.argv) > 2 else 2)
+    elif arg in ('-h', '--help'):
+        print(__doc__.strip())
+    else:
+        toggle()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as e:
+        print(f'hypr-cheatsheet: {e}', file=sys.stderr)
+        subprocess.run(['notify-send', 'Hyprland cheat sheet', str(e)], check=False)
+        sys.exit(1)

@@ -4,8 +4,9 @@
 # 95C, then restores full boost after 30 continuous seconds below 80C. A
 # second line of defense under the hardware throttle for boxes that run
 # unattended compile/test load. Skips cleanly on machines without k10temp.
-# Optional: announces trips out loud if quindar-tone-api is listening on
-# 127.0.0.1:42069 (silently skipped otherwise).
+# Optional: set ANNOUNCE_CMD (systemctl edit thermal-breaker →
+# Environment=ANNOUNCE_CMD=/path/to/notifier) to run a command with a
+# one-line message on every trip and reset. Unset by default.
 set -euo pipefail
 
 if ! grep -qx k10temp /sys/class/hwmon/hwmon*/name 2>/dev/null; then
@@ -24,8 +25,7 @@ RESET_C=${RESET_C:-80}
 RESET_HOLD=${RESET_HOLD:-30}
 POLL=${POLL:-2}
 CLAMP_KHZ=${CLAMP_KHZ:-2000000}
-QUINDAR=${QUINDAR:-http://127.0.0.1:42069/play}
-QUINDAR_VOICE=${QUINDAR_VOICE:-hfc_female}
+ANNOUNCE_CMD=${ANNOUNCE_CMD:-}
 
 # k10temp's hwmon index shifts across boots; resolve it by name
 for h in /sys/class/hwmon/hwmon*; do
@@ -57,9 +57,8 @@ restore() {
 }
 
 announce() {
-    [[ -n $QUINDAR ]] || return 0
-    curl -sf -m 3 -X POST "$QUINDAR" -H 'Content-Type: application/json' \
-        -d "{\"text\": \"$1\", \"voice\": \"$QUINDAR_VOICE\"}" >/dev/null 2>&1 || true
+    [[ -n $ANNOUNCE_CMD ]] || return 0
+    timeout 5 "$ANNOUNCE_CMD" "$1" >/dev/null 2>&1 || true
 }
 
 trap restore EXIT

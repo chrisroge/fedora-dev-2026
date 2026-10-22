@@ -10,7 +10,8 @@ fi
 # shellcheck disable=SC1091
 . "$HOME/.cargo/env"
 
-rustup component add rust-analyzer clippy rustfmt
+rustup component add rust-analyzer clippy rustfmt rust-src
+rustup target add wasm32-unknown-unknown
 
 # SQLx CLI for database migrations (compile-time-checked SQL workflow)
 command -v sqlx >/dev/null 2>&1 || cargo install sqlx-cli

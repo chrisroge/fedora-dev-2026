@@ -1,0 +1,10 @@
+# Shared compilation cache. Agents and worktrees each get their own target
+# directory, so without this every one of them rebuilds a near-identical
+# dependency graph; sccache shares that work instead (~/.cache/sccache, 40G).
+#
+# sccache cannot cache incremental compilation, so CARGO_INCREMENTAL=0 is set
+# alongside it (~/.config/environment.d/sccache.conf). That trades a little
+# interactive rebuild speed for large wins on cold builds. To opt out once:
+#     RUSTC_WRAPPER= CARGO_INCREMENTAL=1 cargo build
+[build]
+rustc-wrapper = "__HOME__/.local/bin/sccache"

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/verify.sh)",
+      "Bash(scripts/verify.sh)",
+      "Bash(hypr-monitors --list)",
+      "Bash(hypr-cheatsheet --print)",
+      "Read(~/.local/state/fedora-dev-2026/**)"
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "model": "opus",
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
+  "cleanupPeriodDays": 180,
+  "theme": "dark",
+  "tui": "fullscreen",
+  "editorMode": "normal",
+  "autoScrollEnabled": true,
+  "preferredNotifChannel": "terminal_bell",
+  "permissions": {
+    "allow": [
+      "Bash(rpm -qa)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(lsof:*)",
+      "Bash(dmesg:*)",
+      "Bash(readlink:*)",
+      "Bash(pgrep:*)"
+    ],
+    "additionalDirectories": ["/tmp"]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "jq -r '\"\\(.model.display_name) · \\(.workspace.current_dir | split(\"/\") | last)\"'"
+  },
+  "hooks": {
+    "Notification": [
+      {"hooks": [{"type": "command", "async": true, "timeout": 10,
+        "command": "paplay /usr/share/sounds/freedesktop/stereo/dialog-information.oga 2>/dev/null || true"}]}
+    ],
+    "StopFailure": [
+      {"hooks": [{"type": "command", "async": true, "timeout": 10,
+        "command": "paplay /usr/share/sounds/freedesktop/stereo/dialog-warning.oga 2>/dev/null || true"}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "AskUserQuestion", "hooks": [{"type": "command", "async": true, "timeout": 10,
+        "command": "paplay /usr/share/sounds/freedesktop/stereo/message-new-instant.oga 2>/dev/null || true"}]},
+      {"matcher": "Bash", "hooks": [{"type": "command", "timeout": 5,
+        "command": "python3 \"$HOME/.claude/hooks/secret-path-guard.py\""}]}
+    ]
+  }
+}

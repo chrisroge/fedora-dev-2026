@@ -1,0 +1,10 @@
+# ~/.codex/config.toml — seeded once by 60-dotfiles.sh (never overwritten).
+# Codex picks its default model; only reasoning effort is set here.
+model_reasoning_effort = "high"
+
+# Ring the terminal bell when a turn finishes or Codex needs you. Ghostty
+# shows the bell as window attention + title flag, silently (ghostty/config).
+[tui]
+notifications = true
+notification_method = "bel"
+notification_condition = "always"

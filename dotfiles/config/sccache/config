@@ -1,0 +1,3 @@
+[cache.disk]
+dir = "__HOME__/.cache/sccache"
+size = 42949672960

@@ -13,18 +13,15 @@ sudo dnf -y install dnf5-plugins fedora-workstation-repositories
 # Fedora proper ships only xdg-desktop-portal-hyprland, so the compositor has
 # to come from a COPR.
 #
-# This was solopasha/hyprland, which is where the packages on the machine this
-# repo was extracted from came from. That project has since gone
-# rawhide-only — it prunes old chroots (auto_prune), and its fedora-43 tree is
-# now a 404, which silently leaves you with no Hyprland and no updates.
-# sachesi/hyprland carries the same 20-package set (compositor, hypridle,
-# hyprlock, hyprpaper, portal, plus aquamarine/hyprutils/hyprlang deps) and
-# builds for fedora-44 and rawhide.
-#
-# COPRs are volunteer-run and can be pruned like this at any time. If the
-# enable below fails, check which chroots the project still has:
-#   https://copr.fedorainfracloud.org/api_3/project?ownername=sachesi&projectname=hyprland
-sudo dnf -y copr enable sachesi/hyprland
+# nett00n/hyprland provides Fedora 43 builds. Version 0.56.2 was verified
+# on this laptop on 2026-10-06; solopasha's Fedora 43 tree returns 404.
+# Check the live chroot list if a future Fedora release cannot resolve it:
+# https://copr.fedorainfracloud.org/api_3/project?ownername=nett00n&projectname=hyprland
+sudo dnf -y copr enable nett00n/hyprland
+sudo dnf config-manager setopt 'copr:copr.fedorainfracloud.org:nett00n:hyprland.includepkgs=hyprland hyprutils hyprlang hyprcursor hyprgraphics hyprwire hyprtoolkit aquamarine hypridle hyprlock hyprpaper hyprpicker xdg-desktop-portal-hyprland'
+if [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:solopasha:hyprland.repo ]; then
+  sudo dnf copr disable solopasha/hyprland
+fi
 
 # Ghostty terminal
 sudo dnf -y copr enable scottames/ghostty
@@ -64,7 +61,7 @@ Fedora $(rpm -E %fedora) is what this machine reports. A third-party repo
 above probably has no build for it — COPR projects prune old chroots, and
 Microsoft moves the VS Code repo path. Check the project's live chroot list
 before editing this script:
-  https://copr.fedorainfracloud.org/api_3/project?ownername=sachesi&projectname=hyprland
+  https://copr.fedorainfracloud.org/api_3/project?ownername=nett00n&projectname=hyprland
 
 EOF
   exit 1

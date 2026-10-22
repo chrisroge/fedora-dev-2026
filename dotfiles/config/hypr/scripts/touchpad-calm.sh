@@ -10,12 +10,20 @@
 hctl() {
     # Resolve the current Hyprland instance each call so we survive
     # Hyprland restarts (each restart mints a new signature dir).
-    local sig
-    # `command ls`: an interactive shell may alias ls to eza, whose -t takes
-    # an argument and would silently return nothing here.
-    sig=$(command ls -t "${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr" 2>/dev/null | head -1)
+    local sig candidate candidates
+    # Ignore stale directories left by --verify-config or exited sessions.
+    candidates=$(hyprctl instances -j 2>/dev/null | jq -r 'sort_by(.time) | reverse | .[].instance')
+    sig=${candidates%%$'\n'*}
+    # Prefer the physical desktop over any nested compositor used for testing.
+    for candidate in $candidates; do
+        if HYPRLAND_INSTANCE_SIGNATURE=$candidate hyprctl -j monitors 2>/dev/null |
+           jq -e 'any(.[]; .name | test("^(eDP|DP|HDMI|DVI|LVDS|VGA)-"))' >/dev/null; then
+            sig=$candidate
+            break
+        fi
+    done
     [ -n "$sig" ] || return 1
-    HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl "$@" >/dev/null 2>&1
+    HYPRLAND_INSTANCE_SIGNATURE=$sig hyprctl "$@" 2>/dev/null
 }
 
 is_mouse_node() {
@@ -63,9 +71,15 @@ external_mouse_present() {
 }
 
 apply() {
-    local taps=true
+    local taps=true version
     external_mouse_present && taps=false
-    hctl --batch "keyword input:touchpad:tap-to-click $taps; keyword input:touchpad:tap-and-drag $taps"
+    version=$(hctl -j version | jq -r '.version // .tag // ""')
+    if [[ $version =~ ^v?0\.([0-9]+) ]] && (( BASH_REMATCH[1] >= 55 )); then
+        # Native Lua configuration uses eval and underscore field names.
+        hctl eval "hl.config({ input = { touchpad = { tap_to_click = $taps, tap_and_drag = $taps } } })" >/dev/null
+    else
+        hctl --batch "keyword input:touchpad:tap-to-click $taps; keyword input:touchpad:tap-and-drag $taps" >/dev/null
+    fi
 }
 
 # --explain: show every pointer node and why it did or didn't count, then the

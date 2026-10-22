@@ -5,7 +5,7 @@ set -euo pipefail
 
 # --- Hyprland desktop -------------------------------------------------------
 # Compositor + the small ecosystem it expects at runtime (see the exec-once
-# lines in dotfiles/config/hypr/hyprland.conf).
+# startup commands in dotfiles/config/hypr/hyprland.lua).
 HYPRLAND=(
   hyprland hypridle hyprlock hyprpaper xdg-desktop-portal-hyprland
   waybar                  # status bar
@@ -42,20 +42,41 @@ DEV=(
 )
 
 # --- Fonts ------------------------------------------------------------------
-# Waybar's stylesheet wants Font Awesome for its glyphs. JetBrainsMono Nerd
-# Font is handled separately in 50-fonts.sh (not packaged by Fedora).
+# Waybar's stylesheet is set in Inter with Font Awesome glyphs. JetBrainsMono
+# Nerd Font (Ghostty) is handled separately in 50-fonts.sh (not in Fedora).
 FONTS=(
-  fontawesome-6-free-fonts
+  rsms-inter-fonts         # Waybar text
+  fontawesome-6-free-fonts # Waybar icons
+  jetbrains-mono-fonts
   adobe-source-code-pro-fonts
 )
 
-# --- Gaming (optional) ------------------------------------------------------
-GAMING=(
-  steam gamemode gamescope mangohud goverlay
+# --- Desktop apps & system tools --------------------------------------------
+# More desktop apps come as Flatpaks (20-flatpaks.sh).
+APPS=(
+  gimp
+  restic gdisk             # backups, GPT partitioning
+  rocm-smi                 # AMD GPU monitoring (no ROCm compute stack)
 )
 
+# --- Gaming (optional) ------------------------------------------------------
+# Steam runs 32-bit games, so the Mesa/Vulkan drivers and the overlay and
+# gamemode libraries are needed in .i686 builds too.
+GAMING=(
+  steam steam-devices gamemode gamescope mangohud goverlay
+  vulkan-tools libva-utils radeontop
+  mangohud.i686 gamemode.i686 vulkan-loader.i686
+  mesa-dri-drivers.i686 mesa-vulkan-drivers.i686 mesa-libGL.i686 mesa-libEGL.i686
+)
+
+# The new compositor owns the UWSM desktop entry; the old split package
+# otherwise causes an RPM file conflict when upgrading from solopasha.
+if rpm -q hyprland-uwsm >/dev/null 2>&1; then
+  sudo dnf -y swap hyprland-uwsm hyprland
+fi
+
 sudo dnf -y install \
-  "${HYPRLAND[@]}" "${CLI[@]}" "${DEV[@]}" "${FONTS[@]}" "${GAMING[@]}"
+  "${HYPRLAND[@]}" "${CLI[@]}" "${DEV[@]}" "${FONTS[@]}" "${APPS[@]}" "${GAMING[@]}"
 
 # AWS SSM session plugin is not in Fedora (or RPM Fusion) — AWS ships its own
 # RPM, so dnf installs it straight from the URL.
